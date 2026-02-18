@@ -1,0 +1,44 @@
+{
+    "manifest_version": 3,
+    "name": "Antigravity Chess Bot",
+    "version": "1.0",
+    "description": "Chess bot for chess.com using Stockfish 17 API",
+    "permissions": [
+        "activeTab",
+        "scripting",
+        "offscreen"
+    ],
+    "background": {
+        "service_worker": "background.js",
+        "type": "module"
+    },
+    "content_security_policy": {
+        "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "*://*.chess.com/*"
+            ],
+            "js": [
+                "content.js"
+            ],
+            "css": [
+                "styles.css"
+            ]
+        }
+    ],
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "stockfish.js",
+                "stockfish.wasm",
+                "offscreen.js",
+                "offscreen.html"
+            ],
+            "matches": [
+                "*://*.chess.com/*"
+            ]
+        }
+    ]
+}

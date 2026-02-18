@@ -1,0 +1,246 @@
+.custom-bot-highlight {
+  position: absolute;
+  width: 12.5%;
+  height: 12.5%;
+  pointer-events: none;
+  z-index: 10;
+}
+
+#bot-overlay-panel {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  width: 240px;
+  padding: 12px;
+  background: rgba(17, 24, 39, 0.95);
+  color: #f3f4f6;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+  z-index: 2147483647;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  text-align: center;
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bot-panel-header {
+  margin-bottom: 12px;
+  cursor: grab;
+  user-select: none;
+}
+
+.bot-panel-header:active {
+  cursor: grabbing;
+}
+
+.bot-panel-header h3 {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: #60a5fa;
+  text-transform: uppercase;
+}
+
+#bot-panel-footer {
+  margin-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 5px;
+}
+
+#bot-advanced-toggle {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 4px;
+  transition: color 0.2s;
+}
+
+#bot-advanced-toggle:hover {
+  color: #60a5fa;
+}
+
+#bot-advanced-toggle svg {
+  transition: transform 0.3s;
+}
+
+#bot-advanced-toggle.open svg {
+  transform: rotate(180deg);
+}
+
+.bot-advanced-section {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease-out;
+  text-align: left;
+}
+
+.bot-advanced-section.open {
+  max-height: 500px;
+  padding-bottom: 5px;
+}
+
+.bot-setting-item {
+  margin-bottom: 12px;
+}
+
+.bot-setting-item label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #9ca3af;
+  margin-bottom: 4px;
+}
+
+.bot-setting-item input[type="range"] {
+  width: 100%;
+  height: 4px;
+  background: #374151;
+  border-radius: 2px;
+  appearance: none;
+  outline: none;
+}
+
+.bot-setting-item input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  background: #60a5fa;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.bot-controls-row {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.bot-panel-btn {
+  flex: 1;
+  padding: 8px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 11px;
+  color: white;
+  transition: all 0.2s;
+  text-transform: uppercase;
+}
+
+#bot-panel-start {
+  background: #10b981;
+}
+
+#bot-panel-start:hover {
+  background: #059669;
+}
+
+#bot-panel-stop {
+  background: #ef4444;
+}
+
+#bot-panel-stop:hover {
+  background: #dc2626;
+}
+
+#bot-move-display {
+  margin: 10px 0;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 8px;
+}
+
+#bot-move-display .label {
+  font-size: 8px;
+  color: #9ca3af;
+  margin-bottom: 2px;
+  display: block;
+  letter-spacing: 0.5px;
+}
+
+#bot-move-display .value {
+  font-size: 14px;
+  font-weight: 800;
+  color: #10b981;
+  display: block;
+}
+
+.bot-debug-container {
+  margin-top: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 8px;
+  border-radius: 6px;
+}
+
+.bot-debug-container .label {
+  font-size: 8px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.bot-status-text {
+  font-size: 11px;
+  margin-top: 8px;
+  opacity: 0.6;
+  font-weight: 500;
+}
+
+.debug-text {
+  user-select: text !important;
+  cursor: text;
+}
+
+.bot-eval-container {
+  margin-top: 10px;
+  position: relative;
+  height: 18px;
+  background: #4b5563;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.bot-eval-bar {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  transition: all 0.5s ease-in-out;
+}
+
+.bot-eval-segment {
+  height: 100%;
+  transition: width 0.5s ease-in-out;
+}
+
+.bot-eval-segment.white {
+  background: #ffffff;
+}
+
+.bot-eval-segment.black {
+  background: #000000;
+}
+
+.bot-eval-text {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 900;
+  transition: all 0.5s ease-in-out;
+  text-shadow: 0 0 2px rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+  white-space: nowrap;
+  padding: 0 5px;
+}
