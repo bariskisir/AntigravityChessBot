@@ -32,6 +32,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           fen: fen,
           depth: depth,
           id: analysisId,
+          multiPv: request.multiPv || 1,
         });
       })
       .catch((err) => {

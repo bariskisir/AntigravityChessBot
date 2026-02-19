@@ -20,6 +20,7 @@ let botSettings = {
   autoNewMatch: false,
   autoRematch: false,
   panelPos: { top: "10px", right: "10px" },
+  mistakeProbability: 0,
 };
 
 function createOverlay() {
@@ -98,10 +99,17 @@ function createOverlay() {
             </div>
             <div class="bot-setting-item">
                 <label>
-                    <span>AUTO PLAY DELAY (S)</span>
+                    <span>AUTO PLAY RANDOMIZE DELAY (MS)</span>
                     <span id="delay-val">${botSettings.autoPlayDelay}</span>
                 </label>
-                <input type="range" id="bot-delay-slider" min="0" max="10" value="${botSettings.autoPlayDelay}">
+                <input type="range" id="bot-delay-slider" min="0" max="10000" step="100" value="${botSettings.autoPlayDelay}">
+            </div>
+            <div class="bot-setting-item">
+                <label>
+                    <span>MISTAKE PROBABILITY (%)</span>
+                    <span id="mistake-val">${botSettings.mistakeProbability}</span>
+                </label>
+                <input type="range" id="bot-mistake-slider" min="0" max="100" value="${botSettings.mistakeProbability}">
             </div>
             <div class="bot-setting-item">
                 <label>
@@ -160,6 +168,12 @@ function createOverlay() {
   document.getElementById("bot-delay-slider").addEventListener("input", (e) => {
     botSettings.autoPlayDelay = parseInt(e.target.value);
     document.getElementById("delay-val").innerText = botSettings.autoPlayDelay;
+    saveSettings();
+  });
+  document.getElementById("bot-mistake-slider").addEventListener("input", (e) => {
+    botSettings.mistakeProbability = parseInt(e.target.value);
+    document.getElementById("mistake-val").innerText =
+      botSettings.mistakeProbability;
     saveSettings();
   });
   document
@@ -535,7 +549,7 @@ async function calculateBestMove() {
   }, 400);
 }
 
-async function askLocalStockfish(fen, depth) {
+async function askLocalStockfish(fen, depth, multiPv = 1) {
   const fenParts = fen.split(" ");
   const turn = fenParts[1] || "w";
 
@@ -545,6 +559,7 @@ async function askLocalStockfish(fen, depth) {
         action: "analyze",
         fen: fen,
         depth: depth,
+        multiPv: multiPv,
       },
       (response) => {
         if (chrome.runtime.lastError) {
@@ -565,18 +580,79 @@ async function askLocalStockfish(fen, depth) {
   });
 }
 
-function handleResult(data, turn, userColor) {
+async function handleResult(data, turn, userColor) {
   updateEvalBar(data);
 
   if (turn === userColor) {
     if (data && data.move) {
-      updateBestMoveText(data.move);
-      setStatus("Analyzing Board", "#10b981");
+      let bestMove = data.move;
+      let isMistake = false;
+      const evalVal = data.eval || 0;
+
+      if (!window.mistakeCache || window.mistakeCache.fen !== lastFen) {
+        const shouldTrigger = (botSettings.mistakeProbability > 0) && (Math.random() * 100 < botSettings.mistakeProbability);
+        const isWinning = (userColor === 'w' && evalVal > 1.5) || (userColor === 'b' && evalVal < -1.5);
+
+        window.mistakeCache = {
+          fen: lastFen,
+          shouldTrigger: shouldTrigger,
+          isWinning: isWinning,
+          processed: false,
+          result: null
+        };
+      }
+
+      const cache = window.mistakeCache;
+
+      if (cache.shouldTrigger && cache.isWinning) {
+        if (cache.processed) {
+          if (cache.result) {
+            bestMove = cache.result.move;
+            isMistake = cache.result.type;
+          } else {
+            setStatus("No safe mistake found. Playing best.", "#10b981");
+          }
+        } else {
+          if (cache.searching) {
+            setStatus("Attempting to find mistake...", "#f59e0b");
+            return;
+          }
+
+          cache.searching = true;
+          setStatus("Attempting to find mistake...", "#f59e0b");
+
+          try {
+            const res = await findMistake(lastFen, userColor);
+            cache.result = res;
+          } catch (e) {
+            console.error("Mistake search failed", e);
+          } finally {
+            cache.processed = true;
+            cache.searching = false;
+          }
+
+          if (cache.result) {
+            bestMove = cache.result.move;
+            isMistake = cache.result.type;
+          } else {
+            setStatus("No safe mistake found. Playing best.", "#10b981");
+          }
+        }
+      }
+
+      updateBestMoveText(bestMove);
+      if (!isMistake) setStatus(`Analyzing Board (Depth ${botSettings.depth})`, "#10b981");
+      else if (isMistake === 'ideal') setStatus("Mistake Mode!", "#ef4444");
+      else setStatus("Suboptimal Mode", "#f97316");
+
       if (!botSettings.autoPlay) {
-        highlightMove(data.move);
+        highlightMove(bestMove, isMistake);
       } else {
         clearHighlights();
-        executeMove(data.move);
+        executeMove(bestMove);
+        if (isMistake) {
+          highlightMove(bestMove, isMistake);
+        }
       }
     } else {
       const msg = data.error || "No move found";
@@ -658,7 +734,7 @@ function updateEvalBar(data) {
   }
 }
 
-function highlightMove(move) {
+function highlightMove(move, mistakeType = false) {
   clearHighlights();
   const board = document.querySelector("wc-chess-board");
   if (!board || !move) return;
@@ -666,8 +742,19 @@ function highlightMove(move) {
   const from = move.slice(0, 2);
   const to = move.slice(2, 4);
 
-  addHighlight(board, from, "rgba(16, 185, 129, 0.4)");
-  addHighlight(board, to, "rgba(16, 185, 129, 0.7)");
+  let color = "rgba(16, 185, 129, 0.7)";
+  let fromColor = "rgba(16, 185, 129, 0.4)";
+
+  if (mistakeType === 'ideal') {
+    color = "rgba(239, 68, 68, 0.7)";
+    fromColor = "rgba(239, 68, 68, 0.4)";
+  } else if (mistakeType === 'suboptimal') {
+    color = "rgba(249, 115, 22, 0.7)";
+    fromColor = "rgba(249, 115, 22, 0.4)";
+  }
+
+  addHighlight(board, from, fromColor);
+  addHighlight(board, to, color);
 }
 
 function getUserColor() {
@@ -781,7 +868,10 @@ async function executeMove(moveUci) {
 
   try {
     if (botSettings.autoPlayDelay > 0) {
-      await new Promise((r) => setTimeout(r, botSettings.autoPlayDelay * 1000));
+      const randomDelay = Math.floor(
+        Math.random() * (botSettings.autoPlayDelay + 1),
+      );
+      await new Promise((r) => setTimeout(r, randomDelay));
     }
 
     const fromStr = moveUci.slice(0, 2);
@@ -874,5 +964,150 @@ async function executeMove(moveUci) {
       lastFen = "";
       if (isAnalyzing) calculateBestMove();
     }, 400);
+  }
+}
+
+async function findMistake(fen, userColor) {
+  try {
+    const multiPvData = await askLocalStockfish(fen, 1, 3);
+    const candidates = Array.isArray(multiPvData) ? multiPvData : [multiPvData];
+
+    let bestSuboptimal = null;
+
+    for (const cand of candidates) {
+      if (!cand.move) continue;
+
+      const nextFen = makeMove(fen, cand.move);
+      if (!nextFen) continue;
+
+      const analysis = await askLocalStockfish(nextFen, botSettings.depth);
+
+      let evalVal = analysis.eval || 0;
+      if (analysis.mate) {
+        evalVal = analysis.mate > 0 ? 100 : -100;
+      }
+
+      const isNotLosing = userColor === 'w' ? (evalVal >= 0.0) : (evalVal <= 0.0);
+
+      if (!isNotLosing) continue;
+
+      let isIdeal = false;
+      if (userColor === 'w') {
+        if (evalVal <= 1.5) isIdeal = true;
+      } else {
+        if (evalVal >= -1.5) isIdeal = true;
+      }
+
+      if (isIdeal) {
+        return { move: cand.move, type: 'ideal' };
+      }
+
+      if (bestSuboptimal === null) {
+        bestSuboptimal = { move: cand.move, eval: evalVal, type: 'suboptimal' };
+      } else {
+        if (userColor === 'w') {
+          if (evalVal < bestSuboptimal.eval) {
+            bestSuboptimal = { move: cand.move, eval: evalVal, type: 'suboptimal' };
+          }
+        } else {
+          if (evalVal > bestSuboptimal.eval) {
+            bestSuboptimal = { move: cand.move, eval: evalVal, type: 'suboptimal' };
+          }
+        }
+      }
+    }
+
+    return bestSuboptimal;
+
+  } catch (e) {
+    console.error("Find mistake error:", e);
+  }
+  return null;
+}
+
+function makeMove(fen, move) {
+  try {
+    const parts = fen.split(" ");
+    let rows = parts[0].split("/");
+    let activeColor = parts[1];
+    let castling = parts[2];
+    let halfMove = parseInt(parts[4]);
+    let fullMove = parseInt(parts[5]);
+
+    const from = move.slice(0, 2);
+    const to = move.slice(2, 4);
+    const promo = move.length === 5 ? move[4] : null;
+
+    const fromFile = from.charCodeAt(0) - 97;
+    const fromRank = 8 - parseInt(from[1]);
+    const toFile = to.charCodeAt(0) - 97;
+    const toRank = 8 - parseInt(to[1]);
+
+    const board = [];
+    for (let r of rows) {
+      let row = [];
+      for (let c of r) {
+        if (!isNaN(c)) {
+          for (let i = 0; i < parseInt(c); i++) row.push(null);
+        } else {
+          row.push(c);
+        }
+      }
+      board.push(row);
+    }
+
+    const piece = board[fromRank][fromFile];
+    board[fromRank][fromFile] = null;
+    board[toRank][toFile] = promo ? (activeColor === 'w' ? promo.toUpperCase() : promo) : piece;
+
+    if (piece && piece.toLowerCase() === 'k') {
+      if (Math.abs(fromFile - toFile) > 1) {
+        if (toFile === 6) {
+          const rook = board[fromRank][7];
+          board[fromRank][7] = null;
+          board[fromRank][5] = rook;
+        } else if (toFile === 2) {
+          const rook = board[fromRank][0];
+          board[fromRank][0] = null;
+          board[fromRank][3] = rook;
+        }
+      }
+    }
+
+    if (piece === 'K') { castling = castling.replace('K', '').replace('Q', ''); }
+    if (piece === 'k') { castling = castling.replace('k', '').replace('q', ''); }
+    if (piece === 'R') {
+      if (fromFile === 0 && fromRank === 7) castling = castling.replace('Q', '');
+      if (fromFile === 7 && fromRank === 7) castling = castling.replace('K', '');
+    }
+    if (piece === 'r') {
+      if (fromFile === 0 && fromRank === 0) castling = castling.replace('q', '');
+      if (fromFile === 7 && fromRank === 0) castling = castling.replace('k', '');
+    }
+    if (castling === '') castling = '-';
+
+    const newRows = [];
+    for (let row of board) {
+      let str = "";
+      let empty = 0;
+      for (let sq of row) {
+        if (sq === null) {
+          empty++;
+        } else {
+          if (empty > 0) { str += empty; empty = 0; }
+          str += sq;
+        }
+      }
+      if (empty > 0) str += empty;
+      newRows.push(str);
+    }
+
+    const nextActive = activeColor === 'w' ? 'b' : 'w';
+    if (activeColor === 'b') fullMove++;
+
+    return `${newRows.join("/")} ${nextActive} ${castling} - ${halfMove} ${fullMove}`;
+  } catch (e) {
+    console.error("makeMove failed:", e);
+    return null;
   }
 }
